@@ -1,0 +1,20 @@
+{
+  "name": "Super Salto",
+  "short_name": "Super Salto",
+  "description": "Juego de plataformas Super Salto",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10141f",
+  "theme_color": "#2b3a67",
+  "orientation": "landscape",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
