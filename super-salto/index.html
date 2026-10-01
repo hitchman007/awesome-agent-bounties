@@ -32,7 +32,7 @@ p{margin:0;font-size:14px;text-align:center;max-width:620px;line-height:1.5}
 <body>
 <div id="installbar"><div><strong>SUPER SALTO</strong><br><span id="pwaStatus">12 mundos · listo para jugar</span></div><button id="installPwa" type="button">INSTALAR</button></div>
 <canvas id="c" width="640" height="480"></canvas>
-<button id="mu">🎵 Música: sí</button>
+<button id="mu">🎵 Música: sí</button><audio id="bgmMedia" loop playsinline preload="none"></audio><audio id="jumpMedia" playsinline preload="none"></audio>
 <div id="pad"><div><button data-k="left">◀</button><button data-k="right">▶</button><button data-k="down">▼</button></div><div><button data-k="fire">🔥</button><button data-k="jump">▲</button></div></div>
 <script>
 const cv=document.getElementById('c'),g=cv.getContext('2d');
@@ -40,6 +40,49 @@ const T=32,W=640,H=480,COLS=100,ROWS=15;
 let grid,coins,enemies,pops,items=[],fb=[],dt=0,L,lvl=0,lt=0,pt=0,pty=0,warps=[],P,cam=0,score,lives,coinsC,state='start',t=0,cp=2,bumped=[];
 const keys={};
 let AC,MG,musicOn=true,mStep=0,mNext=0,audioUnlocked=false;
+let mediaMode=false,mediaReady=false,bgmURL='',jumpURL='';
+function wavURL(kind){
+ const sr=8000,mel=[4,-1,3,4,5,-1,4,3,2,-1,3,2,0,-1,1,2,4,-1,3,4,5,6,7,6,5,-1,4,2,3,-1,1,0],sc=[0,2,4,7,9,12,14,16],ch=[0,-5,-3,-7],root=60;
+ const dur=kind==='bgm'?6.4:.22,N=Math.floor(sr*dur),a=new Float32Array(N),mf=n=>440*Math.pow(2,(n-69)/12);
+ const sq=(st,d,f,v)=>{let i0=st*sr|0,i1=Math.min(N,(st+d)*sr|0);for(let i=i0;i<i1;i++){let t=(i-i0)/sr,e=Math.min(1,t/.008)*Math.min(1,Math.max(0,(d-t)/.025));a[i]+=v*(Math.sin(6.283185307*f*t)>=0?1:-1)*e}};
+ const tri=(st,d,f,v)=>{let i0=st*sr|0,i1=Math.min(N,(st+d)*sr|0);for(let i=i0;i<i1;i++){let t=(i-i0)/sr,p=(t*f)%1,z=4*Math.abs(p-.5)-1,e=Math.min(1,t/.01)*Math.min(1,Math.max(0,(d-t)/.04));a[i]+=v*z*e}};
+ if(kind==='bgm'){
+  for(let s=0;s<mel.length;s++){let st=s*.2,m=mel[s];if(m>=0)sq(st,.18,mf(root+12+sc[m]),.12);if(s%2===0){let bar=(s>>3)&3;tri(st,.34,mf(root-12+ch[bar]+(s%4?7:0)),.18)}}
+ }else{
+  for(let i=0;i<N;i++){let t=i/sr,u,f,v;if(t<.13){u=t/.13;f=392*Math.pow(2,u);v=.6*(1-u*.3)}else{u=(t-.13)/.09;f=784*Math.pow(1175/784,u);v=.45*(1-u)}let e=Math.min(1,t/.004)*Math.min(1,Math.max(0,(dur-t)/.03));a[i]=(Math.sin(6.283185307*f*t)>=0?1:-1)*v*e}
+ }
+ let mx=.001;for(let i=0;i<N;i++)mx=Math.max(mx,Math.abs(a[i]));
+ const b=new ArrayBuffer(44+N),v=new DataView(b),w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');v.setUint32(4,36+N,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr,true);v.setUint16(32,1,true);v.setUint16(34,8,true);w(36,'data');v.setUint32(40,N,true);
+ for(let i=0;i<N;i++)v.setUint8(44+i,Math.max(0,Math.min(255,128+Math.round(a[i]/mx*105))));
+ return URL.createObjectURL(new Blob([b],{type:'audio/wav'}));
+}
+function setPlaybackSession(){
+ try{
+  if(navigator.audioSession){
+   navigator.audioSession.type='ambient';
+   setTimeout(()=>{try{navigator.audioSession.type='playback'}catch(e){}},0);
+  }
+ }catch(e){}
+}
+function ensureMediaAudio(){
+ setPlaybackSession();
+ const bg=document.getElementById('bgmMedia'),jm=document.getElementById('jumpMedia');
+ if(!mediaReady){
+  bgmURL=wavURL('bgm');jumpURL=wavURL('jump');bg.src=bgmURL;jm.src=jumpURL;
+  bg.volume=.5;jm.volume=.9;mediaReady=true;
+ }
+ if(musicOn){
+  const p=bg.play();
+  if(p&&p.then)p.then(()=>{mediaMode=true;mNext=0}).catch(()=>{});
+ }
+ unlockAudio();
+}
+function playJumpMedia(){
+ const j=document.getElementById('jumpMedia');if(!mediaReady)ensureMediaAudio();
+ try{j.pause();j.currentTime=0;const p=j.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}
+}
+
 function ac(){
  try{
   if(!AC){
@@ -73,7 +116,7 @@ const sfx=n=>SF[n]&&SF[n]();
 const DARK=[1,3,6,9,10,11],ROOT=[60,57,62,55,64,60,58,63,67,53,56,59],MEL=[4,-1,3,4,5,-1,4,3,2,-1,3,2,0,-1,1,2,4,-1,3,4,5,6,7,6,5,-1,4,2,3,-1,1,0];
 const SM=[0,2,4,7,9,12,14,16],Sm=[0,3,5,7,10,12,15,17],CH=[0,-5,-3,-7],Ch=[0,-4,-2,-5],mf=n=>440*2**((n-69)/12);
 function music(){
- if(!AC||!musicOn||(state!=='play'&&state!=='pipe')){mNext=0;return}
+ if(mediaMode||!AC||!musicOn||(state!=='play'&&state!=='pipe')){mNext=0;return}
  const now=AC.currentTime;if(!mNext||mNext<now-.3)mNext=now+.05;
  const dk=DARK.includes(lvl),sc=dk?Sm:SM,ch=dk?Ch:CH,sd=60/(dk?138:150+lvl*2)/2,r=ROOT[lvl%12];
  while(mNext<now+.2){
@@ -277,14 +320,19 @@ items.forEach(drawI);fb.forEach(f=>{g.fillStyle='#ff7a1a';g.beginPath();g.arc(f.
 
 function start(){ac();if(state==='play'||state==='pipe'||state==='die')return;if(state==='clear')lvl++;else{score=0;lives=3;coinsC=0;if(state!=='over')lvl=0}build(state==='clear');state='play'}
 const map={ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right',ArrowDown:'down',s:'down',S:'down',ArrowUp:'jump',w:'jump',W:'jump',' ':'jump',x:'fire',X:'fire',z:'fire',Z:'fire'};
-addEventListener('keydown',e=>{unlockAudio();const k=map[e.key];if(k){e.preventDefault();keys[k]=true;start()}});
+addEventListener('keydown',e=>{ensureMediaAudio();const k=map[e.key];if(k){e.preventDefault();if(k==='jump')playJumpMedia();keys[k]=true;start()}});
 addEventListener('keyup',e=>{const k=map[e.key];if(k)keys[k]=false});
-cv.addEventListener('pointerdown',()=>{unlockAudio();start()});
-document.getElementById('mu').onclick=e=>{unlockAudio();musicOn=!musicOn;mNext=0;e.target.textContent='🎵 Música: '+(musicOn?'sí':'no');e.target.blur();if(musicOn)music()};
+cv.addEventListener('pointerdown',()=>{ensureMediaAudio();start()});
+document.getElementById('mu').onclick=e=>{
+    ensureMediaAudio();musicOn=!musicOn;mNext=0;
+    const bg=document.getElementById('bgmMedia');
+    if(musicOn){ensureMediaAudio();music()}else{try{bg.pause()}catch(x){}}
+    e.target.textContent='🎵 Música: '+(musicOn?'sí':'no');e.target.blur()
+  };
 document.querySelectorAll('#pad button').forEach(b=>{const k=b.dataset.k;
- b.addEventListener('pointerdown',e=>{e.preventDefault();unlockAudio();keys[k]=true;start()});
+ b.addEventListener('pointerdown',e=>{e.preventDefault();ensureMediaAudio();if(k==='jump')playJumpMedia();keys[k]=true;start()});
  ['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>keys[k]=false))});
-document.addEventListener('touchstart',unlockAudio,{passive:true,capture:true,once:true});document.addEventListener('pointerdown',unlockAudio,{capture:true,once:true});score=0;lives=3;coinsC=0;build();
+document.addEventListener('touchstart',ensureMediaAudio,{passive:true,capture:true,once:true});document.addEventListener('pointerdown',ensureMediaAudio,{capture:true,once:true});score=0;lives=3;coinsC=0;build();
 let last=0,acc=0;
 function loop(ts){acc+=Math.min(ts-last,100);last=ts;while(acc>=16.667){update();acc-=16.667}draw();requestAnimationFrame(loop)}
 requestAnimationFrame(loop);
