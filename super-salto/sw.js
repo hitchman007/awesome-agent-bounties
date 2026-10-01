@@ -1,4 +1,4 @@
-const CACHE='super-salto-v3';
+const CACHE='super-salto-v4';
 const ASSETS=['/','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(
